@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-// 1. Add this import for the AI
-import 'package:google_generative_ai/google_generative_ai.dart'; 
-// 2. Add this import to get your secret key
-import 'api_key.dart'; 
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,66 +11,63 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AI Assistant',
+      title: 'AI Tutor',
       theme: ThemeData(
-        // Using a Blue theme instead of Deep Purple
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      // 3. We changed "MyHomePage" to "ChatScreen"
-      home: const ChatScreen(), 
+      home: const TutorPage(),
     );
   }
 }
 
-// We deleted the "MyHomePage" class (the counter) and added this ChatScreen instead.
-class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+class TutorPage extends StatefulWidget {
+  const TutorPage({super.key});
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  State<TutorPage> createState() => _TutorPageState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
-  late final GenerativeModel _model;
+class _TutorPageState extends State<TutorPage> {
+  // CONTROL: Controller to read the text box
+  final TextEditingController _scoreController = TextEditingController();
   
-  // This list will store the chat history
-  final List<String> _chatHistory = []; 
-  final TextEditingController _controller = TextEditingController();
+  // STATE: This holds the AI's response
+  String _feedback = "Enter a score to get feedback!";
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize the Gemini Model with your API key
-    _model = GenerativeModel(model: 'gemini-pro', apiKey: apiKey);
-  }
+  // ⚠️ API KEY: Paste your "AIza..." key here!
+  final String _apiKey = 'AIzaSyAjUGfZAkIB_a7VYX35eqE0ECB4l1h8iuw';
 
-  Future<void> _sendMessage() async {
-    final message = _controller.text;
-    if (message.isEmpty) return;
+  Future<void> _getFeedback() async {
+    if (_scoreController.text.isEmpty) return;
 
     setState(() {
       _isLoading = true;
-      // Add user message to history
-      _chatHistory.add("You: $message"); 
-      _controller.clear();
+      _feedback = "Thinking...";
     });
 
     try {
-      final content = [Content.text(message)];
-      final response = await _model.generateContent(content);
+      // 1. Setup the Model
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: _apiKey,
+      );
+
+      // 2. Create the Prompt
+      final prompt = "The student got a score of ${_scoreController.text}/100. "
+          "You are a friendly teacher. Give them 2 sentences of encouraging feedback.";
+
+      // 3. Generate Content
+      final response = await model.generateContent([Content.text(prompt)]);
 
       setState(() {
-        // Add AI response to history
-        _chatHistory.add("AI: ${response.text ?? 'No response'}");
+        _feedback = response.text ?? "No response from AI.";
+        _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _chatHistory.add("Error: $e");
-      });
-    } finally {
-      setState(() {
+        _feedback = "Error: $e";
         _isLoading = false;
       });
     }
@@ -82,55 +76,49 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("My AI Assistant"),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Column(
-        children: [
-          // This Expanded widget displays the list of messages
-          Expanded(
-            child: ListView.builder(
-              itemCount: _chatHistory.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Text(
-                    _chatHistory[index],
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                );
-              },
+      appBar: AppBar(title: const Text("AI Grading Tutor")),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Input Field
+            TextField(
+              controller: _scoreController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Enter Student Score (0-100)',
+              ),
             ),
-          ),
-          if (_isLoading) const LinearProgressIndicator(),
-          
-          // Input area
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: "Ask something...",
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  ),
-                  icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
-                ),
-              ],
+            const SizedBox(height: 20),
+
+            // The Button
+            ElevatedButton.icon(
+              onPressed: _isLoading ? null : _getFeedback,
+              icon: _isLoading 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
+                  : const Icon(Icons.smart_toy),
+              label: Text(_isLoading ? "Asking Gemini..." : "Get AI Feedback"),
             ),
-          ),
-        ],
+            const SizedBox(height: 30),
+
+            // The Result
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.deepPurple.shade200),
+              ),
+              child: Text(
+                _feedback,
+                style: const TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
