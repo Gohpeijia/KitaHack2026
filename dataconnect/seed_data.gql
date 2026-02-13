@@ -1,0 +1,94 @@
+mutation CreateDemoData @transaction @auth(level: USER, insecureReason: "This is a seed mutation and should only be run by authenticated users for development purposes.") {
+  user_insertMany(data: [
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      username: "john_doe",
+      email: "john.doe@example.com",
+      createdAt: "2023-01-01T10:00:00Z",
+      displayName: "John Doe",
+      profilePictureUrl: "https://example.com/avatar/john.jpg"
+    },
+    {
+      id: "b1f1a0e0-b0c0-4c1d-8d2e-3f4g5h6i7j8k",
+      username: "jane_smith",
+      email: "jane.smith@example.com",
+      createdAt: "2023-01-02T11:00:00Z",
+      displayName: "Jane Smith",
+      profilePictureUrl: "https://example.com/avatar/jane.jpg"
+    }
+  ])
+  project_insertMany(data: [
+    {
+      id: "c2g2b1f1-c1d1-4e2e-9f3f-4g5h6i7j8k9l",
+      ownerId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      createdAt: "2023-01-03T12:00:00Z",
+      name: "Project Alpha",
+      description: "The first project for demonstration."
+    },
+    {
+      id: "d3h3c2g2-d2e2-4f3f-0a4a-5h6i7j8k9l0m",
+      ownerId: "b1f1a0e0-b0c0-4c1d-8d2e-3f4g5h6i7j8k",
+      createdAt: "2023-01-04T13:00:00Z",
+      name: "Project Beta",
+      description: "The second project for demonstration."
+    }
+  ])
+  task_insertMany(data: [
+    {
+      id: "e4i4d3h3-e3f3-4g4g-1b5b-6i7j8k9l0m1n",
+      projectId: "c2g2b1f1-c1d1-4e2e-9f3f-4g5h6i7j8k9l",
+      assigneeId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      createdAt: "2023-01-05T14:00:00Z",
+      title: "Task 1 for Alpha",
+      status: "Open",
+      priority: "High",
+      description: "Complete initial setup for Project Alpha."
+    },
+    {
+      id: "f5j5e4i4-f4g4-4h5h-2c6c-7j8k9l0m1n2o",
+      projectId: "d3h3c2g2-d2e2-4f3f-0a4a-5h6i7j8k9l0m",
+      assigneeId: "b1f1a0e0-b0c0-4c1d-8d2e-3f4g5h6i7j8k",
+      createdAt: "2023-01-06T15:00:00Z",
+      title: "Task 1 for Beta",
+      status: "In Progress",
+      priority: "Medium",
+      description: "Begin research for Project Beta."
+    }
+  ])
+  comment_insertMany(data: [
+    {
+      id: "g6k6f5j5-g5h5-4i6i-3d7d-8k9l0m1n2o3p",
+      authorId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      taskId: "e4i4d3h3-e3f3-4g4g-1b5b-6i7j8k9l0m1n",
+      createdAt: "2023-01-07T16:00:00Z",
+      content: "Looking good so far!"
+    },
+    {
+      id: "h7l7g6k6-h6i6-4j7j-4e8e-9l0m1n2o3p4q",
+      authorId: "b1f1a0e0-b0c0-4c1d-8d2e-3f4g5h6i7j8k",
+      projectId: "d3h3c2g2-d2e2-4f3f-0a4a-5h6i7j8k9l0m",
+      createdAt: "2023-01-08T17:00:00Z",
+      content: "Need to clarify the scope for this project."
+    }
+  ])
+  projectMember_insertMany(data: [
+    {
+      projectId: "c2g2b1f1-c1d1-4e2e-9f3f-4g5h6i7j8k9l",
+      memberId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      joinedAt: "2023-01-03T12:00:00Z",
+      role: "Lead"
+    },
+    {
+      projectId: "c2g2b1f1-c1d1-4e2e-9f3f-4g5h6i7j8k9l",
+      memberId: "b1f1a0e0-b0c0-4c1d-8d2e-3f4g5h6i7j8k",
+      joinedAt: "2023-01-03T12:30:00Z",
+      role: "Member"
+    },
+    {
+      projectId: "d3h3c2g2-d2e2-4f3f-0a4a-5h6i7j8k9l0m",
+      memberId: "b1f1a0e0-b0c0-4c1d-8d2e-3f4g5h6i7j8k",
+      joinedAt: "2023-01-04T13:00:00Z",
+      role: "Lead"
+    }
+  ])
+}

@@ -1,0 +1,48 @@
+query AllProjects @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  projects {
+    id
+    name
+    description
+    createdAt
+    dueDate
+    owner {
+      id
+      username
+      displayName
+    }
+  }
+}
+
+query MyTasks @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  tasks(where: {assigneeId: {eq_expr: "auth.uid"}}) {
+    id
+    title
+    status
+    priority
+    dueDate
+    project {
+      id
+      name
+    }
+  }
+}
+
+mutation CreateComment($taskId: UUID!, $content: String!) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  comment_insert(data: {
+    taskId: $taskId,
+    authorId_expr: "auth.uid",
+    content: $content,
+    createdAt_expr: "request.time"
+  }) {
+    id
+  }
+}
+
+mutation UpdateUserProfile($displayName: String, $profilePictureUrl: String) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  user_update(key: {id_expr: "auth.uid"}, data: {
+    displayName: $displayName,
+    profilePictureUrl: $profilePictureUrl
+  }) {
+    id
+  }
+}
