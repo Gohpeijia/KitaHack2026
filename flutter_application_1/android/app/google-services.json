@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "302420738156",
+    "project_id": "kitahack2026-c2a42",
+    "storage_bucket": "kitahack2026-c2a42.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:302420738156:android:e9608f98251407435a9849",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXce7FFpIbUzS_eZ7IALr0DwyfQzSMC6I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

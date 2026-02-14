@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // load environment variables from .env file
+import 'package:firebase_core/firebase_core.dart'; 
+import 'firebase_options.dart';
 
-// let's remove the hardcoded API key from the code and rely on the .env file for security
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // load the .env file to access environment variables
+  // 初始化 Firebase (新增这段代码)
+await Firebase.initializeApp(
+  options: DefaultFirebaseOptions.currentPlatform,
+);
+
+  // load the .env file
   await dotenv.load(fileName: ".env"); 
   
   runApp(const MyApp());
