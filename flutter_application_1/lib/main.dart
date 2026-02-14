@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // load environment variables from .env file
 
-void main() {
+// let's remove the hardcoded API key from the code and rely on the .env file for security
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // load the .env file to access environment variables
+  await dotenv.load(fileName: ".env"); 
+  
   runApp(const MyApp());
 }
 
@@ -36,8 +43,7 @@ class _TutorPageState extends State<TutorPage> {
   String _feedback = "Enter a score to get feedback!";
   bool _isLoading = false;
 
-  // ⚠️ API KEY: Paste your "AIza..." key here!
-  final String _apiKey = 'AIzaSyAjUGfZAkIB_a7VYX35eqE0ECB4l1h8iuw';
+  // delete the old method that used the hardcoded API key and replace it with a new one that reads from the .env file
 
   Future<void> _getFeedback() async {
     if (_scoreController.text.isEmpty) return;
@@ -48,17 +54,29 @@ class _TutorPageState extends State<TutorPage> {
     });
 
     try {
-      // 1. Setup the Model
+      // read the API key from the environment variable
+      final apiKey = dotenv.env['GEMINI_API_KEY'];
+      
+      // check is it read successfully
+      if (apiKey == null || apiKey.isEmpty) {
+        setState(() {
+          _feedback = "Error: cant find the API key in environment variables.";
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 4. Setup the Model using the secure key
       final model = GenerativeModel(
         model: 'gemini-2.5-flash',
-        apiKey: _apiKey,
+        apiKey: apiKey, 
       );
 
-      // 2. Create the Prompt
+      // 5. Create the Prompt
       final prompt = "The student got a score of ${_scoreController.text}/100. "
           "You are a friendly teacher. Give them 2 sentences of encouraging feedback.";
 
-      // 3. Generate Content
+      // 6. Generate Content
       final response = await model.generateContent([Content.text(prompt)]);
 
       setState(() {

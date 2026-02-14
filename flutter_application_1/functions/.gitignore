@@ -1,6 +1,4 @@
-# Python bytecode
-__pycache__/
 
-# Python virtual environment
-venv/
-*.local
+
+# Ignore environment variables
+.env
