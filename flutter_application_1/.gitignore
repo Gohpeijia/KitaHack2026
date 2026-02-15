@@ -46,5 +46,12 @@ app.*.map.json
 
 # API keys
 lib/api_key.dart
-
 node_modules/
+.env
+
+# Python bytecode
+__pycache__/
+
+# Python virtual environment
+venv/
+*.local
