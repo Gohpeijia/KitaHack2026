@@ -1,0 +1,30 @@
+name: Scheduled Nudge Engine
+
+on:
+  schedule:
+    # GitHub Actions uses UTC time for scheduling. 
+    #To run at 5 PM Malaysia Time (UTC+8), we set it to 9 AM UTC.
+    - cron: '0 9 * * *' 
+  workflow_dispatch: # allow manual triggering of the workflow from GitHub UI
+
+jobs:
+  run-nudge-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install firebase-admin
+
+      - name: Run Nudge Engine
+        env:
+          # read the Firebase credentials from GitHub Secrets and pass it to the Python script
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+        run: python nudge_engine.py

@@ -40,6 +40,7 @@ dependencies:
   cloud_firestore: ^6.1.2
   firebase_auth: ^6.1.4
   image_picker: ^1.1.2       # applying image picker for profile picture upload
+  add_2_calendar: ^3.0.1   # for adding recipe steps to user's calendar
 
 dev_dependencies:
   flutter_test:
