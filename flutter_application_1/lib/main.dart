@@ -3,12 +3,13 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // load environment variables from .env file
 import 'package:firebase_core/firebase_core.dart'; 
 import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 初始化 Firebase (新增这段代码)
+  // initialize Firebase before running the app
 await Firebase.initializeApp(
   options: DefaultFirebaseOptions.currentPlatform,
 );
@@ -51,6 +52,24 @@ class _TutorPageState extends State<TutorPage> {
   bool _isLoading = false;
 
   // delete the old method that used the hardcoded API key and replace it with a new one that reads from the .env file
+  @override
+    void initState() {
+      super.initState();
+      _loginTestUser();
+    }
+
+    // 👇 logic
+  Future<void> _loginTestUser() async {
+    try {
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: "kitahacktest@gmail.com", // chenge to the email you set in firebase console
+        password: "Hack1234",         // change to the password you set for that test account
+      );
+      debugPrint("✅ Test sccount login successful UID: ${credential.user?.uid}");
+    } on FirebaseAuthException catch (e) {
+      debugPrint("❌ Test version login failed: ${e.code}");
+    }
+  }
 
   Future<void> _getFeedback() async {
     if (_scoreController.text.isEmpty) return;
