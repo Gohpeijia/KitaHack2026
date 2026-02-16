@@ -62,8 +62,8 @@ class _TutorPageState extends State<TutorPage> {
   Future<void> _loginTestUser() async {
     try {
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: "kitahacktest@gmail.com", // chenge to the email you set in firebase console
-        password: "Hack1234",         // change to the password you set for that test account
+        email: "kitahacktest@gmail.com", // change to the email you set in firebase console
+        password: "Hack1234",          // change to the password you set for that test account
       );
       debugPrint("✅ Test account login successful UID: ${credential.user?.uid}");
     } on FirebaseAuthException catch (e) {
@@ -121,7 +121,7 @@ class _TutorPageState extends State<TutorPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("AI Grading Tutor")),
-      body: SingleChildScrollView( // 添加了滑动视图，防止小屏幕手机内容溢出
+      body: SingleChildScrollView( // added to prevent overflow when keyboard appears
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
@@ -163,53 +163,122 @@ class _TutorPageState extends State<TutorPage> {
                 ),
               ),
               
-              const SizedBox(height: 50), // 加大一点间距，和上方功能区分开
+              const SizedBox(height: 50), 
 
-              // 👇 新添加的测试按钮放在这里 👇
+              // Push Notification Test Button
               ElevatedButton(
                 onPressed: () async {
                   try {
-                    // 1. 请求系统推送权限 (弹窗问用户同不同意)
+                    // 1. request permission for push notifications (this will show a prompt to the user)
                     await FirebaseMessaging.instance.requestPermission();
 
-                    // 2. 抓取你这台测试手机的 Token
+                    // 2. catch Token
                     String? token = await FirebaseMessaging.instance.getToken();
 
                     if (token != null) {
-                      debugPrint("✅ 抓到 Token 了: $token");
+                      debugPrint("✅ catch token: $token");
 
-                      // 3. 强行塞进数据库，假装这是一个叫 "test_user_001" 的用户
+                      // 3. Save token to Firestore
                       await FirebaseFirestore.instance.collection('users').doc('test_user_001').set({
                         'fcm_token': token,
-                        'name': 'Pei Jia (后端测试专属)', 
+                        'name': 'Pei Jia (base on test account)', 
                       }, SetOptions(merge: true));
 
-                      debugPrint("✅ 测试 Token 已强行写入 Firestore！去控制台看看吧！");
+                      debugPrint("✅ Test Token has been forcibly written to Firestore! Check the console!");
                       
-                      // 如果在界面上弹出一个提示框就更好了
+                      // if you want to show a confirmation in the app, you can use a SnackBar or Dialog here
                       if(context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                           const SnackBar(content: Text('✅ Token 上传成功！请检查 Firestore 数据库。'))
+                           const SnackBar(content: Text('✅ Token uploaded to Firestore! Check console for details.'))
                         );
                       }
                     }
                   } catch (e) {
-                    debugPrint("❌ 发生错误: $e");
+                    debugPrint("❌ Error uploading token: $e");
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange, // 给测试按钮换个醒目的颜色
+                  backgroundColor: Colors.orange, // button color
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15)
                 ),
-                child: const Text('【测试】强行获取并上传推送 Token'),
+                child: const Text('Test Push Notification Setup'),
               ),
-              // 👆 测试按钮代码结束 👆
+
+              const SizedBox(height: 20), // Add some spacing
+
+              // 🌟 NEW: Carbon Reduction Test Button 🌟
+              ElevatedButton(
+                onPressed: () async {
+                  // 1. Instantiate the class you wrote
+                  final aggregator = ImpactAggregator();
+                  
+                  // 2. Generate a random ID for test food to ensure a reaction on every click
+                  final testFoodId = 'food_${DateTime.now().millisecondsSinceEpoch}';
+                  
+                  // 3. Call the function (Simulate consuming 0.5kg of food)
+                  await aggregator.markFoodAsSaved(testFoodId, 'test_user_001', 0.5);
+                  
+                  // 4. Show success popup
+                  if(context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                       const SnackBar(
+                         content: Text('🌱 Success! Consumed 0.5kg of food, carbon points added! Check Firebase!'),
+                         backgroundColor: Colors.green,
+                       )
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green, // Eco-friendly color
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15)
+                ),
+                child: const Text('Mark as Consumed (Test Carbon Impact)'),
+              ),
 
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+// 🌟 NEW: Carbon Reduction Aggregation Logic Class (At the bottom of the file) 🌟
+class ImpactAggregator {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// Mark food as consumed/donated and synchronously calculate carbon reduction
+  Future<void> markFoodAsSaved(String inventoryId, String userId, double weightKg) async {
+    try {
+      debugPrint("📊 Calculating environmental impact...");
+
+      // 1. Calculate the carbon emission saved this time
+      const double emissionFactor = 2.5; 
+      final double co2Saved = weightKg * emissionFactor;
+
+      // 2. Create a WriteBatch (bulk write operation)
+      WriteBatch batch = _firestore.batch();
+
+      // Action A: Update the status of this food item to 'consumed'
+      DocumentReference itemRef = _firestore.collection('inventories').doc(inventoryId);
+      // Note: Using set with merge: true so that even if this test ID doesn't exist, it will auto-create and write the status
+      batch.set(itemRef, {'status': 'consumed'}, SetOptions(merge: true));
+
+      // Action B: Safely accumulate total carbon reduction in the user profile
+      DocumentReference userRef = _firestore.collection('users').doc(userId);
+      batch.set(userRef, {
+        'total_co2_saved': FieldValue.increment(co2Saved)
+      }, SetOptions(merge: true)); 
+
+      // 3. Commit both actions at once
+      await batch.commit();
+
+      debugPrint("🌍 Success! Reduced carbon emission by $co2Saved kg this time!");
+
+    } catch (e) {
+      debugPrint("❌ Calculation failed: $e");
+    }
   }
 }

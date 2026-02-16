@@ -13,7 +13,7 @@ class GeminiService {
       // Note: Please enter your actual API Key within the quotation marks below.
       final apiKey = dotenv.env['GEMINI_API_KEY']; 
       if (apiKey == null || apiKey.isEmpty) {
-        throw Exception("API Key 未找到！请检查 .env 文件。");
+        throw Exception("API Key unset! Please set GEMINI_API_KEY in your .env file.");
       }
       final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: apiKey);
 
