@@ -5,6 +5,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from PIL import Image
 
+from firebase_admin import firestore
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -41,6 +42,7 @@ def analyze_fridge_with_usp(image_path):
     return json.loads(response.text)
 
 def save_to_firebase(ai_results, user_id):
+    db = firestore.client()
     # This sends your AI insights into the database your friend is using
     user_ref = db.collection('users').document(user_id)
     
