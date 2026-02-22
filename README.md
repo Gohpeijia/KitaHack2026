@@ -1,10 +1,13 @@
 🍃 FridgeGuardian
 KitaHack 2026 Submission | A smart, zero-waste fridge management system powered by Gemini 2.5 Flash and Firebase.
+
 🎯 The Mission
 In Malaysia, thousands of tonnes of food are wasted daily. FridgeGuardian is designed to tackle SDG 12 (Responsible Consumption and Production) and SDG 13 (Climate Action).
 Unlike traditional inventory apps that rely on manual data entry, FridgeGuardian uses computer vision to track your food and acts as a behavioral intervention tool to gently "nudge" users away from over-purchasing.
 ✨ Key Features (The USP)📸
+
 **Vision-Powered Logging:** Snap a picture of your fridge. The AI automatically extracts food items, quantities, and estimates expiry dates.
+
 **🧠 Behavioral Nudges:** The AI analyzes your storage patterns and provides actionable advice (e.g., "You frequently leave 1L milk unfinished. Consider buying the 500ml carton next time.").
 **🌍 Carbon Impact Tracker:** Automatically calculates the $CO_2$ emissions saved when food is successfully consumed or shared rather than thrown away.
 **🤝 Community Bridge:** Flags surplus items that are unlikely to be finished, suggesting them for community donation before they expire.
