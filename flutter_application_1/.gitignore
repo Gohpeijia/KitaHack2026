@@ -12,6 +12,7 @@
 .swiftpm/
 migrate_working_dir/
 
+
 # IntelliJ related
 *.iml
 *.ipr
@@ -55,3 +56,9 @@ __pycache__/
 # Python virtual environment
 venv/
 *.local
+
+# Firebase Secrets
+flutter_application_1/service_account.json
+service_account.json
+*.json
+!firebase.json
