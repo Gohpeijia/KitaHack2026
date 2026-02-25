@@ -50,20 +50,29 @@ class GeminiService {
         rawText = rawText.split('```')[1].trim();
       }
       
-      List<dynamic> items = jsonDecode(rawText);
+      Map<String, dynamic> aiResults = jsonDecode(rawText);
 
       // 6. write the extracted items into Firestore under the user's inventory
       final db = FirebaseFirestore.instance;
       // The path here corresponds to your designed database: users -> specific user ID -> inventory
-      final collectionRef = db.collection('users').doc(userId).collection('inventory');
+      final userRef = db.collection('users').doc(userId);
+      final inventoryRef = userRef.collection('inventory');
 
       final batch = db.batch();
+      DateTime now = DateTime.now();
+      if (aiResults.containsKey('inventory')) {
+        List<dynamic> items = aiResults['inventory'];
       for (var item in items) {
-        final docRef = collectionRef.doc(); 
+        final docRef = inventoryRef.doc(); 
+        int daysLeft = item['expiry_days'] ?? 3; 
+          DateTime calculatedExpiry = now.add(Duration(days: daysLeft));
+        // For simplicity, we calculate the estimated expiry date by adding a fixed number of days to the current date. In a real app, you might want to use more sophisticated logic based on the type of food.
         batch.set(docRef, {
-          'name': item['name'],
-          'quantity': item['quantity'],
-          'expiryDate': item['expiry_date'],
+          'name': item['name'] ?? 'Unknown Item',
+          'quantity': item['quantity'] ?? '1',
+          'sharing_eligible': item['sharing_eligible'] ?? false,
+          'estimated_expiry': Timestamp.fromDate(calculatedExpiry),
+          'status': 'active',
           'addedAt': FieldValue.serverTimestamp(), 
         });
       }
@@ -71,6 +80,7 @@ class GeminiService {
       await batch.commit();
       debugPrint("🎉 Success！${items.length} ingredients have been stored in the database.！");
 
+    }
     } catch (e) {
       debugPrint("❌ Occur error: $e");
     }

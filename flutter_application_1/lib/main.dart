@@ -178,10 +178,11 @@ class _TutorPageState extends State<TutorPage> {
                     if (token != null) {
                       debugPrint("✅ catch token: $token");
 
+                      final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'test_user_001';
                       // 3. Save token to Firestore
-                      await FirebaseFirestore.instance.collection('users').doc('test_user_001').set({
+                      await FirebaseFirestore.instance.collection('users').doc(userId).set({
                         'fcm_token': token,
-                        'name': 'Pei Jia (base on test account)', 
+                        'name': 'Demo User', 
                       }, SetOptions(merge: true));
 
                       debugPrint("✅ Test Token has been forcibly written to Firestore! Check the console!");
@@ -215,9 +216,10 @@ class _TutorPageState extends State<TutorPage> {
                   
                   // 2. Generate a random ID for test food to ensure a reaction on every click
                   final testFoodId = 'food_${DateTime.now().millisecondsSinceEpoch}';
+                  final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'test_user_001';
                   
                   // 3. Call the function (Simulate consuming 0.5kg of food)
-                  await aggregator.markFoodAsSaved(testFoodId, 'test_user_001', 0.5);
+                  await aggregator.markFoodAsSaved(testFoodId, userId, 0.5);
                   
                   // 4. Show success popup
                   if(context.mounted) {
@@ -262,7 +264,11 @@ class ImpactAggregator {
       WriteBatch batch = _firestore.batch();
 
       // Action A: Update the status of this food item to 'consumed'
-      DocumentReference itemRef = _firestore.collection('inventories').doc(inventoryId);
+      DocumentReference itemRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('inventory')
+        .doc(inventoryId);
       // Note: Using set with merge: true so that even if this test ID doesn't exist, it will auto-create and write the status
       batch.set(itemRef, {'status': 'consumed'}, SetOptions(merge: true));
 

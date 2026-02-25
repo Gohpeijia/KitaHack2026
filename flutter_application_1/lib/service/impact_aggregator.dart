@@ -1,3 +1,4 @@
+// ignore: dangling_library_doc_comments
 /// if need to use thiks script, use "import 'impact_aggregator.dart';" "
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
