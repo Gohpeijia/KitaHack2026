@@ -21,7 +21,6 @@ db = initialize_db()
 print("Nudge Engine: Connected and ready!")
 
 def check_and_nudge():
-    # Use timezone-aware UTC now to match Firestore timestamps
     now = datetime.datetime.now(datetime.timezone.utc)
     tomorrow = now + datetime.timedelta(hours=24)
 
@@ -37,14 +36,17 @@ def check_and_nudge():
 
         inventory_ref = users_ref.document(user_id).collection('inventory')
         
-        # 1. ORIGINAL LOGIC: Expiring tomorrow
-        expiring_items = inventory_ref.where('estimated_expiry', '<=', tomorrow).stream()
+        # --- THE FIX: ADD STATUS FILTER ---
+        # We only want items that are NOT consumed
+        expiring_items = inventory_ref.where('status', '!=', 'consumed') \
+                                     .where('estimated_expiry', '<=', tomorrow) \
+                                     .stream()
 
         for item in expiring_items:
             data = item.to_dict()
-            food_name = data.get('name')
-            
-            # 2. USP LOGIC: Community Bridge (SDG 2)
+            food_name = data.get('name') or "Unnamed Food Item" # Fix for "None" names
+
+            # USP LOGIC: Community Bridge
             if data.get('sharing_eligible') == True:
                 title = "🌟 Community Surplus Bridge"
                 body = f"You likely won't finish the {food_name}. Tap to share it with your community!"
@@ -52,7 +54,6 @@ def check_and_nudge():
                 title = "🚨 Waste Alert!"
                 body = f"Your {food_name} expires tomorrow. Cook it tonight!"
 
-            # --- ADDED: SAFE SENDING ---
             try:
                 message = messaging.Message(
                     notification=messaging.Notification(title=title, body=body),

@@ -3,7 +3,7 @@ import json
 import datetime
 import google.generativeai as genai
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, storage
 from dotenv import load_dotenv
 from PIL import Image
 
@@ -53,30 +53,50 @@ def analyze_fridge_with_usp(image_path):
     )
     return json.loads(response.text)
 
-def save_to_firebase(ai_results, user_id):
-    # Fixed: Use the 'db' initialized at the top
-    user_ref = db.collection('users').document(user_id)
+def download_user_image(user_id):
+    """Downloads the image uploaded by the Flutter app from Firebase Storage."""
+    # The bucket name is usually your Project ID + '.appspot.com'
+    bucket = storage.bucket(name="kitahack2026-c2a42.appspot.com") 
     
-    # Fixed: Key name changed to 'behavioral_insight' to match AI output
+    # We assume Daniel's Flutter app saves the image as 'user_id.jpg'
+    blob = bucket.blob(f"fridge_images/{user_id}.jpg")
+    
+    local_filename = f"temp_{user_id}.jpg"
+    blob.download_to_filename(local_filename)
+    print(f"✅ Downloaded latest image for user: {user_id}")
+    return local_filename
+
+def save_to_firebase(ai_results, user_id):
+    user_ref = db.collection('users').document(user_id)
     user_ref.update({"latest_insight": ai_results['behavioral_insight']})
     
     for item in ai_results['inventory']:
         user_ref.collection('inventory').add({
             "name": item['name'],
+            "status": "active",  # Add this line to avoid the Zombie Bug
             "sharing_eligible": item['sharing_eligible'],
-            # Fixed: Key name changed to 'expiry_days' to match AI output
             "estimated_expiry": datetime.datetime.now() + datetime.timedelta(days=item['expiry_days'])
         })
 
 if __name__ == "__main__":
+    target_user = "8AhvDGBQ0zbxm1CrBkJqBO8nCzp1" # Daniel's UID
+    
     try:
-        # Use a real fridge image path here
-        results = analyze_fridge_with_usp("fridge.jpg")
+        # STEP 1: Download the actual image uploaded by the user
+        current_image_path = download_user_image(target_user)
         
-        # Fixed: Using the specific UID for your teammate's account
-        save_to_firebase(results, user_id="8AhvDGBQ0zbxm1CrBkJqBO8nCzp1")
+        # STEP 2: Analyze the downloaded image
+        results = analyze_fridge_with_usp(current_image_path)
+        
+        # STEP 3: Save results to the database
+        save_to_firebase(results, user_id=target_user)
         
         print(json.dumps(results, indent=2))
         print("\n✅ AI Analysis successfully saved to Firebase!")
+        
+        # Cleanup: Remove the temporary file after scanning
+        if os.path.exists(current_image_path):
+            os.remove(current_image_path)
+            
     except Exception as e:
         print(f"Error: {e}")
