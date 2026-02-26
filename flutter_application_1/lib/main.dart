@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'ui/fridgeguardian_demo.dart' show FridgeGuardianApp;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +19,7 @@ Future<void> main() async {
   // load the .env file
   await dotenv.load(fileName: ".env"); 
   
-  runApp(const MyApp());
+  runApp(const FridgeGuardianApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -32,7 +33,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const TutorPage(),
+      home: const FridgeGuardianApp(),
     );
   }
 }
@@ -288,3 +289,4 @@ class ImpactAggregator {
     }
   }
 }
+
