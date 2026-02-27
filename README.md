@@ -97,9 +97,6 @@ In Bash:
 * **AI Vision Latency:** Initially, sending raw phone images to Gemini took over 20 seconds. We built a pre-processing layer in Flutter to compress images, reducing AI inference time to under 4 seconds without losing vision quality.
 * **The Zombie Food Bug:** We had to write complex compound queries in Firestore to ensure our Python Nudge Engine only alerted users about food that was *expiring* AND still marked as *active* (not yet consumed).
 
-## 📊 Environmental Impact Tracking
-Every time a user consumes or shares an item instead of throwing it away, our `ImpactAggregator` logs the transaction. Using a standard emission factor, we gamify the experience by showing users exactly how many kg of CO₂ they have saved, directly answering **SDG 13**.
-
 ## 🔐 Security Notes
   
   - **API Keys:** The `.env` file is included in `.gitignore` to prevent accidental credential leaks.
