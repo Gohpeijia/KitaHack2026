@@ -62,3 +62,4 @@ flutter_application_1/service_account.json
 service_account.json
 *.json
 !firebase.json
+service-account-key.json
