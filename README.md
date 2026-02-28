@@ -13,10 +13,11 @@ Unlike traditional inventory apps that rely on manual data entry, FridgeGuardian
 
 ## 📱 App Preview
 
-| 📸 1. The Home Page | 📸 2. Smart Vision Scan | 🧠 3. Behavioral Insights | 🚨 4. The Nudge Engine |
-| :---: | :---: | :---: | :---: |
-| <img width="180" height="120" alt="Screenshot (537)" src="https://github.com/user-attachments/assets/7463f4d5-7495-419f-a0cc-5169be8fac83" /> | <img width="180" height="120" alt="Screenshot (539)" src="https://github.com/user-attachments/assets/d21ba186-a37d-475b-a341-342637879ce6" /> | <img width="180" height="120" alt="Screenshot (540)" src="https://github.com/user-attachments/assets/e1a8baee-acf5-4856-8b34-559bf15a834f" /> | <img width="180" height="120" alt="image" src="https://github.com/user-attachments/assets/8440d801-a4da-4556-a138-50dabc0bbeb0" /> |
-| *Homepage Design. The overall record are appear here.* |*Fridge Scan Design. No manual typing or data entry required.* | *AI automatically extracts expiry dates and analyzes your waste patterns.* | *The AI sates the ways to handle food before it spoils.* |
+| 😃 1. The Login Page | 📸 2. The Home Page | 📸 3. Smart Vision Scan | 🧠 4. Behavioral Insights | 🚨 5. The Nudge Engine |
+| :---: | :---: | :---: | :---: |:---: |
+| <img width="100" height="180" alt="{89FEE5FC-4EBE-4C01-94E2-88FF13F7DFFB}" src="https://github.com/user-attachments/assets/557ad4b8-1d82-4f65-8728-b97937cf7f56" /> |\ <img width="180" height="120" src="https://github.com/user-attachments/assets/0eaef85f-e098-4370-8556-ab3df4ae9141"/> | <img width="180" height="120" src="https://github.com/user-attachments/assets/c7f3a323-166d-49c4-9394-c4936be83648" /> | <img width="180" height="120" src= "https://github.com/user-attachments/assets/f056b7ca-cb7f-4d26-9490-36b7973d9bba"> | <img width="200" height="120" src= "https://github.com/user-attachments/assets/65f5d752-65f4-4274-b506-5946c1adfb9e"> |
+||<img width="287.5" height="640" alt="image" src="https://github.com/user-attachments/assets/6d05fab6-f823-4d1e-9d92-0e3cb9a6a2fa" /> | <img width="287.5" height="640" alt="image" src="https://github.com/user-attachments/assets/6a0987f6-c713-4843-b40b-563cc07727f4" /> | <img width="280" height="550" alt="image" src="https://github.com/user-attachments/assets/c388f434-3c7b-4a23-8826-9c7262ba9fd1" /> | <img width="240" height="500" alt="image" src="https://github.com/user-attachments/assets/c77cc3db-2a3f-454d-aec1-95deec24a435" /> |
+| *Login Design. User can sign in or continue as guest to use the app.* | *Homepage Design. The overall record are appear here.* |*Fridge Scan Design. No manual typing or data entry required.* | *AI automatically extracts expiry dates and analyzes your waste patterns.* | *The AI sates the ways to handle food, user can press the comsumed button to notice the CO_2 emissions saved* |
 
 ## ✨ Key Features (The USP)
 
