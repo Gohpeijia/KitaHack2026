@@ -45,6 +45,9 @@ dependencies:
   add_2_calendar: ^3.0.1   # for adding recipe steps to user's calendar
   firebase_messaging: ^16.1.1
   flutter_local_notifications: ^17.2.4
+  timezone: ^0.9.4
+  flutter_timezone: ^5.0.1
+  mobile_scanner: ^7.2.0
 
 dev_dependencies:
   flutter_test:

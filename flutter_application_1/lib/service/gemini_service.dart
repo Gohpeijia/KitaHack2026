@@ -7,27 +7,61 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 /// Direct Gemini AI service for fridge image analysis and nudge generation.
 ///
-/// Uses exactly 1 API call per scan to stay within free-tier quota (20 RPM).
+/// Rotates through multiple models to maximise free-tier daily quota
+/// (each model gets ~20 requests/day on the free plan).
 class GeminiService {
   GeminiService._();
   static final GeminiService instance = GeminiService._();
 
-  static const String _defaultModel = 'gemini-2.5-flash';
-  static const String _fallbackModel = 'gemini-2.5-flash-lite';
+  /// Models to try in order. Each has its own 20 RPD free-tier quota.
+  static const List<String> _modelRotation = <String>[
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash',
+  ];
+
+  /// Track which models are quota-exhausted so we skip them.
+  final Set<String> _exhaustedModels = <String>{};
 
   GenerativeModel? _model;
-  String? _modelName;
+  String? _activeModelName;
 
   String get _resolvedModelName {
-    // Always re-read from env so .env changes take effect on restart.
-    final String envModel = (dotenv.env['GEMINI_MODEL'] ?? '').trim();
-    final String desired = envModel.isNotEmpty ? envModel : _defaultModel;
-    if (_modelName != desired && _modelName != _fallbackModel) {
-      _modelName = desired;
-      _model = null; // force rebuild with new model
+    // If we have an active model that isn't exhausted, use it
+    if (_activeModelName != null && !_exhaustedModels.contains(_activeModelName)) {
+      return _activeModelName!;
     }
-    _modelName ??= desired;
-    return _modelName!;
+    // Check .env preference first
+    final String envModel = (dotenv.env['GEMINI_MODEL'] ?? '').trim();
+    if (envModel.isNotEmpty && !_exhaustedModels.contains(envModel)) {
+      _activeModelName = envModel;
+      _model = null;
+      return envModel;
+    }
+    // Rotate to next available model
+    for (final String model in _modelRotation) {
+      if (!_exhaustedModels.contains(model)) {
+        _activeModelName = model;
+        _model = null;
+        debugPrint('Gemini: using model $model');
+        return model;
+      }
+    }
+    // All exhausted — clear and start over (daily quota may have reset)
+    _exhaustedModels.clear();
+    _activeModelName = _modelRotation.first;
+    _model = null;
+    return _activeModelName!;
+  }
+
+  bool _isQuotaError(Object error) {
+    final String msg = error.toString().toLowerCase();
+    return msg.contains('quota') ||
+        msg.contains('429') ||
+        msg.contains('resource_exhausted') ||
+        msg.contains('rate') && msg.contains('limit') ||
+        msg.contains('too many requests');
   }
 
   bool _isUnsupportedModelError(Object error) {
@@ -38,11 +72,14 @@ class GeminiService {
         message.contains('model') && message.contains('available');
   }
 
-  void _switchToFallbackModel() {
-    if (_resolvedModelName == _fallbackModel) return;
-    _modelName = _fallbackModel;
+  /// Mark the current model as quota-exhausted and switch to next available.
+  void _rotateToNextModel() {
+    final String current = _activeModelName ?? _modelRotation.first;
+    _exhaustedModels.add(current);
     _model = null;
-    debugPrint('Gemini model fallback activated: $_fallbackModel');
+    _activeModelName = null; // Will be resolved on next call
+    debugPrint('Gemini: model $current exhausted, '
+        'exhausted=${_exhaustedModels.length}/${_modelRotation.length}');
   }
 
   GenerativeModel get _gemini {
@@ -132,36 +169,14 @@ class GeminiService {
         'error': 'AI returned no items. Try a clearer photo.',
       };
     } catch (error) {
-      if (_isUnsupportedModelError(error) &&
-          _resolvedModelName != _fallbackModel) {
-        try {
-          _switchToFallbackModel();
-          final GenerateContentResponse
-          fallbackResponse = await _gemini.generateContent(<Content>[
-            Content.multi(<Part>[
-              TextPart(
-                'Study this fridge photo carefully, shelf by shelf, door by door. '
-                'List EVERY visible food item, drink, condiment, sauce, and container. '
-                'Return strict JSON with items fields: '
-                'name, quantity, expiry_date, estimated_expiry_days, freshness_score, sharing_eligible.',
-              ),
-              DataPart(mimeType, imageBytes),
-            ]),
-          ]);
-          final Map<String, dynamic>? parsed = _parseJsonResponse(
-            fallbackResponse.text ?? '',
-          );
-          if (parsed != null && parsed['items'] is List) {
-            final List<dynamic> rawItems = parsed['items'] as List<dynamic>;
-            final List<Map<String, dynamic>> normalized = rawItems
-                .whereType<Map<String, dynamic>>()
-                .map(_normalizeItem)
-                .toList();
-            if (normalized.isNotEmpty) {
-              return <String, dynamic>{'items': normalized};
-            }
-          }
-        } catch (_) {}
+      // On quota or unsupported-model errors, rotate to the next available model
+      if (_isQuotaError(error) || _isUnsupportedModelError(error)) {
+        debugPrint('analyzeFridgeImage: ${_resolvedModelName} failed ($error), rotating...');
+        _rotateToNextModel();
+        // If we still have untried models, retry immediately
+        if (_exhaustedModels.length < _modelRotation.length) {
+          return analyzeFridgeImage(imageBytes: imageBytes, mimeType: mimeType);
+        }
       }
       debugPrint('analyzeFridgeImage error: $error');
       return <String, dynamic>{
@@ -174,6 +189,63 @@ class GeminiService {
   // ---------------------------------------------------------------------------
   // Generate 3 nudge actions from inventory (1 API call)
   // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // Analyze a barcode -> product name, expiry, freshness (1 API call)
+  // ---------------------------------------------------------------------------
+
+  Future<Map<String, dynamic>> analyzeBarcode({
+    required String barcode,
+  }) async {
+    final String prompt =
+        'A user scanned a product barcode: "$barcode".\n\n'
+        'Identify the product and return JSON with these fields:\n'
+        '- "name": product name (brand + product, e.g. "Dutch Lady Fresh Milk 1L")\n'
+        '- "quantity": 1\n'
+        '- "expiry_date": "YYYY-MM-DD" if commonly known, or null\n'
+        '- "estimated_expiry_days": estimated shelf life in days (int, 1-365)\n'
+        '- "freshness_score": 1-5 (assume new/sealed = 4 or 5)\n'
+        '- "category": product category (e.g. "dairy", "snack", "beverage")\n\n'
+        'Return ONLY valid JSON, no markdown fences. Example:\n'
+        '{"name":"Yakult Original 5-pack","quantity":1,"expiry_date":null,'
+        '"estimated_expiry_days":21,"freshness_score":5,"category":"dairy"}';
+
+    try {
+      final GenerateContentResponse response = await _gemini.generateContent(
+        <Content>[Content.text(prompt)],
+      );
+      final String text = response.text ?? '';
+      debugPrint('Gemini analyzeBarcode response: $text');
+
+      final Map<String, dynamic>? parsed = _parseJsonResponse(text);
+      if (parsed != null && parsed['name'] is String) {
+        return _normalizeItem(parsed);
+      }
+      return <String, dynamic>{
+        'name': 'Unknown Product',
+        'quantity': 1,
+        'estimated_expiry_days': 7,
+        'freshness_score': 3,
+        'error': 'Could not identify product from barcode.',
+      };
+    } catch (error) {
+      if (_isQuotaError(error) || _isUnsupportedModelError(error)) {
+        debugPrint('analyzeBarcode: ${_resolvedModelName} failed ($error), rotating...');
+        _rotateToNextModel();
+        if (_exhaustedModels.length < _modelRotation.length) {
+          return analyzeBarcode(barcode: barcode);
+        }
+      }
+      debugPrint('analyzeBarcode error: $error');
+      return <String, dynamic>{
+        'name': 'Unknown Product',
+        'quantity': 1,
+        'estimated_expiry_days': 7,
+        'freshness_score': 3,
+        'error': 'analyzeBarcode failed: $error',
+      };
+    }
+  }
 
   Future<Map<String, dynamic>> generateNudges({
     required List<Map<String, dynamic>> items,
@@ -230,35 +302,12 @@ class GeminiService {
         'error': 'Model returned invalid nudge output. Fallback nudges used.',
       };
     } catch (error) {
-      if (_isUnsupportedModelError(error) &&
-          _resolvedModelName != _fallbackModel) {
-        try {
-          _switchToFallbackModel();
-          final GenerateContentResponse fallbackResponse = await _gemini
-              .generateContent(<Content>[Content.text(prompt)]);
-          final Map<String, dynamic>? parsed = _parseJsonResponse(
-            fallbackResponse.text ?? '',
-          );
-          if (parsed != null && parsed['actions'] is List) {
-            final List<dynamic> rawActions = parsed['actions'] as List<dynamic>;
-            if (rawActions.length >= 3) {
-              final List<Map<String, dynamic>> actions =
-                  <Map<String, dynamic>>[];
-              for (final dynamic action in rawActions.take(3)) {
-                if (action is Map<String, dynamic>) {
-                  actions.add(<String, dynamic>{
-                    'title': ((action['title'] as String?) ?? '').trim(),
-                    'why': ((action['why'] as String?) ?? '').trim(),
-                    'duration': '~15 min',
-                  });
-                }
-              }
-              if (actions.length == 3) {
-                return <String, dynamic>{'actions': actions};
-              }
-            }
-          }
-        } catch (_) {}
+      if (_isQuotaError(error) || _isUnsupportedModelError(error)) {
+        debugPrint('generateNudges: ${_resolvedModelName} failed ($error), rotating...');
+        _rotateToNextModel();
+        if (_exhaustedModels.length < _modelRotation.length) {
+          return generateNudges(items: items);
+        }
       }
       debugPrint('generateNudges error: $error');
       return <String, dynamic>{
