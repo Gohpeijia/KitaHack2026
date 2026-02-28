@@ -76,6 +76,8 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
   final ImagePicker _imagePicker = ImagePicker();
   final GlobalKey<ScaffoldMessengerState> _messengerKey =
       GlobalKey<ScaffoldMessengerState>();
+  final GlobalKey<NavigatorState> _navigatorKey =
+      GlobalKey<NavigatorState>();
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
@@ -657,8 +659,8 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
   /// Gemini AI to look up the product name and estimated expiry, then adds
   /// the item directly to inventory.
   Future<void> _scanBarcode() async {
-    if (_demoMode) {
-      // Demo mode: add a mock barcode-scanned item
+    // On web, fall back to demo mock since MobileScanner doesn't work.
+    if (kIsWeb && _demoMode) {
       setState(() {
         _inventory.add(FoodItem(
           id: 'barcode_demo_${DateTime.now().millisecondsSinceEpoch}',
@@ -674,12 +676,20 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
       return;
     }
 
-    // Open fullscreen barcode scanner
-    final String? barcodeValue = await Navigator.of(context).push<String>(
-      MaterialPageRoute<String>(
-        builder: (BuildContext context) => const _BarcodeScannerScreen(),
-      ),
-    );
+    // Always open real camera barcode scanner on mobile
+    String? barcodeValue;
+    try {
+      final NavigatorState navigator = _navigatorKey.currentState!;
+      barcodeValue = await navigator.push<String>(
+        MaterialPageRoute<String>(
+          builder: (BuildContext context) => const _BarcodeScannerScreen(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Barcode scanner error: $e');
+      _showSnack('Could not open barcode scanner: $e', isError: true);
+      return;
+    }
 
     if (barcodeValue == null || barcodeValue.isEmpty || !mounted) return;
     _showSnack('Barcode detected: $barcodeValue. Looking up product...');
@@ -688,6 +698,27 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
       _processing = true;
       _step = DemoStep.processing;
     });
+
+    // In demo mode on mobile: use scanned barcode but skip Gemini lookup
+    if (_demoMode) {
+      if (!mounted) return;
+      final FoodItem item = FoodItem(
+        id: 'barcode_${barcodeValue}_${DateTime.now().millisecondsSinceEpoch}',
+        name: 'Scanned Product ($barcodeValue)',
+        quantity: 1,
+        expiryDate: DateTime.now().add(const Duration(days: 7)),
+        freshnessScore: 3,
+      );
+      setState(() {
+        _inventory.add(item);
+        _processing = false;
+        _liveStatusMessage = null;
+        _step = DemoStep.inventory;
+      });
+      _checkAndNotifyExpiringItems();
+      _showSnack('Added scanned product from barcode!');
+      return;
+    }
 
     try {
       // Use Gemini to identify the product from the barcode
@@ -888,7 +919,9 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
     return candidates;
   }
 
-  String? _buildRepeatedExpiryBuyLessSuggestion() {
+  /// Returns a map of { lowercased-name : { 'display': 'Milk', 'count': 3 } }
+  /// for items that expired 2+ times in the last 14 days.
+  Map<String, Map<String, dynamic>> _getRepeatedExpiryItems() {
     final DateTime today = DateUtils.dateOnly(DateTime.now());
     final DateTime cutoff = today.subtract(const Duration(days: 14));
     final Map<String, int> expiredCountsByName = <String, int>{};
@@ -906,19 +939,89 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
       displayNameByKey.putIfAbsent(key, () => item.name.trim());
     }
 
-    String? frequentKey;
-    int bestCount = 0;
+    final Map<String, Map<String, dynamic>> result = <String, Map<String, dynamic>>{};
     expiredCountsByName.forEach((String key, int count) {
-      if (count >= 2 && count > bestCount) {
+      if (count >= 2) {
+        result[key] = <String, dynamic>{
+          'display': displayNameByKey[key] ?? key,
+          'count': count,
+        };
+      }
+    });
+    return result;
+  }
+
+  /// Returns true if this item name has expired 2+ times in last 14 days.
+  bool _isRepeatExpirer(FoodItem item) {
+    final String key = item.name.trim().toLowerCase();
+    return _getRepeatedExpiryItems().containsKey(key);
+  }
+
+  String? _buildRepeatedExpiryBuyLessSuggestion() {
+    final Map<String, Map<String, dynamic>> repeats = _getRepeatedExpiryItems();
+    if (repeats.isEmpty) return null;
+
+    // Pick the worst offender for the suggestion text
+    String? worstKey;
+    int bestCount = 0;
+    repeats.forEach((String key, Map<String, dynamic> data) {
+      final int count = data['count'] as int;
+      if (count > bestCount) {
         bestCount = count;
-        frequentKey = key;
+        worstKey = key;
       }
     });
 
-    if (frequentKey == null) return null;
-    final String displayName =
-        displayNameByKey[frequentKey!] ?? frequentKey!;
+    if (worstKey == null) return null;
+    final String displayName = repeats[worstKey]!['display'] as String;
     return 'Buy less $displayName next time (it expired $bestCount time${bestCount > 1 ? 's' : ''} in the last 2 weeks).';
+  }
+
+  /// Builds a smart grocery list: items to reduce + items running low.
+  List<Map<String, dynamic>> _buildSmartGroceryList() {
+    final Map<String, Map<String, dynamic>> repeats = _getRepeatedExpiryItems();
+    final List<Map<String, dynamic>> groceryItems = <Map<String, dynamic>>[];
+
+    // 1) Items to BUY LESS — expired repeatedly
+    for (final MapEntry<String, Map<String, dynamic>> entry in repeats.entries) {
+      groceryItems.add(<String, dynamic>{
+        'name': entry.value['display'] as String,
+        'action': 'buy_less',
+        'reason': 'Expired ${entry.value['count']}x in 2 weeks',
+        'count': entry.value['count'] as int,
+      });
+    }
+
+    // 2) Items that are CONSUMED and could be restocked
+    // (consumed items that are NOT repeat expirers = user actually used them)
+    final Set<String> repeatKeys = repeats.keys.toSet();
+    final Map<String, int> consumedCounts = <String, int>{};
+    final Map<String, String> consumedDisplay = <String, String>{};
+    for (final FoodItem item in _inventory) {
+      if (!item.consumed) continue;
+      final String key = item.name.trim().toLowerCase();
+      if (key.isEmpty || repeatKeys.contains(key)) continue;
+      consumedCounts[key] = (consumedCounts[key] ?? 0) + 1;
+      consumedDisplay.putIfAbsent(key, () => item.name.trim());
+    }
+    consumedCounts.forEach((String key, int count) {
+      groceryItems.add(<String, dynamic>{
+        'name': consumedDisplay[key] ?? key,
+        'action': 'restock',
+        'reason': 'Used ${count}x — restock for next time',
+        'count': count,
+      });
+    });
+
+    // Sort: buy_less first, then restock by count descending
+    groceryItems.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+      final int aOrder = a['action'] == 'buy_less' ? 0 : 1;
+      final int bOrder = b['action'] == 'buy_less' ? 0 : 1;
+      if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+      return (b['count'] as int).compareTo(a['count'] as int);
+    });
+
+    return groceryItems;
   }
 
   List<String> _buildSuggestions() {
@@ -2122,6 +2225,7 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       scaffoldMessengerKey: _messengerKey,
       debugShowCheckedModeBanner: false,
       title: 'FridgeGuardian',
@@ -2787,14 +2891,38 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Name
+                        // Name + buy-less badge
                         Expanded(
                           flex: 3,
-                          child: Text(
-                            item.name,
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  item.name,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (_isRepeatExpirer(item)) ...[
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'BUY LESS',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 7,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -3540,7 +3668,10 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
                       ),
                     );
                   }),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  // ── Smart Grocery List ──
+                  _buildSmartGroceryListSection(theme, scheme),
+                  const SizedBox(height: 20),
                   Text(
                     'Mark Consumed',
                     style: theme.textTheme.titleLarge?.copyWith(
@@ -3626,6 +3757,250 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
         ),
     );
   }
+  // ── Smart Grocery List Section (shown in Suggestions screen) ──
+  Widget _buildSmartGroceryListSection(ThemeData theme, ColorScheme scheme) {
+    final List<Map<String, dynamic>> groceryList = _buildSmartGroceryList();
+    final List<Map<String, dynamic>> buyLessItems = groceryList
+        .where((Map<String, dynamic> g) => g['action'] == 'buy_less')
+        .toList();
+    final List<Map<String, dynamic>> restockItems = groceryList
+        .where((Map<String, dynamic> g) => g['action'] == 'restock')
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: scheme.tertiary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.shopping_cart_rounded, color: scheme.tertiary),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Smart Grocery List',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'AI-powered shopping recommendations',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Buy Less section
+        if (buyLessItems.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEE2E2).withOpacity(0.7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.25)),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.trending_down_rounded, color: Color(0xFFEF4444), size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'Buy Less — These keep expiring',
+                  style: const TextStyle(
+                    color: Color(0xFF991B1B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...buyLessItems.map((Map<String, dynamic> item) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _glassCard(
+                borderRadius: 12,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.remove_shopping_cart_rounded, size: 18, color: Color(0xFFEF4444)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            item['name'] as String,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            item['reason'] as String,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFFEF4444),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'BUY LESS',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+        ],
+
+        // Restock section
+        if (restockItems.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD1FAE5).withOpacity(0.7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF10B981).withOpacity(0.25)),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.add_shopping_cart_rounded, color: Color(0xFF10B981), size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'Restock — You used these up',
+                  style: const TextStyle(
+                    color: Color(0xFF065F46),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...restockItems.map((Map<String, dynamic> item) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _glassCard(
+                borderRadius: 12,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1FAE5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.add_shopping_cart_rounded, size: 18, color: Color(0xFF10B981)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            item['name'] as String,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            item['reason'] as String,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFF10B981),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'RESTOCK',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+
+        if (groceryList.isEmpty)
+          _glassCard(
+            borderRadius: 12,
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.check_circle_rounded, color: const Color(0xFF10B981), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'No grocery recommendations yet.\nKeep tracking your items and we\'ll suggest what to buy more or less of!',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildDashboardScreen() {
     final ThemeData theme = Theme.of(context);
     return _buildShell(
