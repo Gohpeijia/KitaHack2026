@@ -312,8 +312,10 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
   }
 
   /// ── Local expiry-reminder notifications ──────────────────────────
-  /// Fires a pop-up notification (Telegram / WhatsApp style) for each
-  /// food item that is at-risk (≤ 2 days) or expiring soon (≤ 4 days).
+  /// Fires a pop-up notification (Telegram / WhatsApp style) for
+  /// food items that are at-risk (≤ 2 days) or expiring soon (≤ 4 days).
+  /// Shows ONE combined notification so the most important items are always
+  /// visible — urgent items listed first, then expiring-soon items.
   /// Debounced: runs at most once every 30 minutes.
   void _checkAndNotifyExpiringItems() {
     if (!_notificationReady) return;
@@ -328,40 +330,56 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
         _inventory.where((FoodItem item) => !item.consumed).toList();
     if (unconsumed.isEmpty) return;
 
-    // Collect items that need urgent attention
+    // Collect items that need urgent attention (≤ 2 days or low freshness)
     final List<FoodItem> urgent = unconsumed
         .where((FoodItem item) => _daysToExpiry(item) <= 2 || item.freshnessScore <= 2)
         .toList();
+    // Collect items expiring soon (3-4 days) but not yet urgent
     final List<FoodItem> soon = unconsumed
         .where((FoodItem item) =>
             !urgent.contains(item) && _daysToExpiry(item) <= 4)
         .toList();
 
-    // Fire an individual notification per urgent item
-    for (final FoodItem item in urgent) {
-      final int days = _daysToExpiry(item);
-      final String urgency = days <= 0
-          ? 'Expired! Eat or discard now'
-          : days == 1
-              ? 'Expires TOMORROW'
-              : 'Expires in $days days';
-      _fireLocalNotification(
-        id: item.id.hashCode,
-        title: '⚠️ ${item.name} — $urgency',
-        body:
-            'You have ${item.quantity} ${item.name} that needs attention. Open FridgeGuardian to check.',
-      );
+    // Nothing to notify about
+    if (urgent.isEmpty && soon.isEmpty) return;
+
+    // Helper: collapse duplicates into "Name (x3)" format
+    String _collapseNames(List<FoodItem> items) {
+      final Map<String, int> counts = <String, int>{};
+      for (final FoodItem i in items) {
+        counts[i.name] = (counts[i.name] ?? 0) + 1;
+      }
+      return counts.entries.map((MapEntry<String, int> e) {
+        return e.value > 1 ? '${e.key} (x${e.value})' : e.key;
+      }).join(', ');
     }
 
-    // Fire one grouped notification for "expiring soon" items
-    if (soon.isNotEmpty) {
-      final String names = soon.map((FoodItem i) => i.name).join(', ');
-      _fireLocalNotification(
-        id: 'soon_group'.hashCode,
-        title: '🕐 ${soon.length} item${soon.length > 1 ? 's' : ''} expiring soon',
-        body: '$names — plan to use them in the next few days!',
-      );
+    // Build ONE combined notification with urgent items first
+    final StringBuffer body = StringBuffer();
+    String title;
+
+    if (urgent.isNotEmpty && soon.isEmpty) {
+      // Only urgent items
+      title = '🚨 ${urgent.length} item${urgent.length > 1 ? 's' : ''} — eat/use TODAY!';
+      body.write(_collapseNames(urgent));
+      body.write(' — consume these immediately before they expire or spoil!');
+    } else if (urgent.isEmpty && soon.isNotEmpty) {
+      // Only expiring-soon items
+      title = '🕐 ${soon.length} item${soon.length > 1 ? 's' : ''} expiring soon';
+      body.write(_collapseNames(soon));
+      body.write(' — plan to use them in the next few days!');
+    } else {
+      // Both urgent AND soon
+      title = '🚨 ${urgent.length} urgent + ${soon.length} expiring soon';
+      body.write('EAT TODAY: ${_collapseNames(urgent)}');
+      body.write('\nUse soon: ${_collapseNames(soon)}');
     }
+
+    _fireLocalNotification(
+      id: 'expiry_combined'.hashCode,
+      title: title,
+      body: body.toString(),
+    );
   }
 
   /// ── Scheduled expiry reminders (work even when app is closed) ──────
