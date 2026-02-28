@@ -2677,264 +2677,159 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
   }
   Widget _buildInventoryScreenStable() {
     final ThemeData theme = Theme.of(context);
-    final TextTheme t = theme.textTheme;
-    final TextStyle titleStyle = t.titleLarge ??
-        const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        );
-    final TextStyle bodyStyle = t.bodyLarge ??
-        const TextStyle(
-          fontSize: 16,
-        );
-    final TextStyle subStyle = t.bodyMedium ??
-        const TextStyle(
-          fontSize: 14,
-          color: Colors.grey,
-        );
+    final ColorScheme scheme = theme.colorScheme;
     final List<FoodItem> visible =
         _inventory.where((FoodItem i) => !i.consumed).toList();
     final List<FoodItem> atRisk = visible.where(_isAtRisk).toList();
-    final String bannerText = atRisk.isNotEmpty
-        ? '${atRisk.length} items at risk - use these today'
-        : 'No urgent items right now';
 
     return _buildShell(
       sectionTitle: 'Inventory',
-      sectionSubtitle: 'Review scanned food and fix risk items quickly.',
+      sectionSubtitle: '${visible.length} items scanned${atRisk.isNotEmpty ? ' · ${atRisk.length} at risk' : ''}',
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          _glassCard(
-            color: atRisk.isNotEmpty
-                ? const Color(0xFFFEE2E2)
-                : const Color(0xFFD1FAE5),
-            opacity: 0.7,
-            borderRadius: 16,
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: <Widget>[
-                Icon(
-                  atRisk.isNotEmpty
-                      ? Icons.warning_amber_rounded
-                      : Icons.check_circle_rounded,
-                  color: atRisk.isNotEmpty
-                      ? const Color(0xFFEF4444)
-                      : const Color(0xFF10B981),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Risk Summary: $bannerText',
-                    style: titleStyle.copyWith(
-                      color: atRisk.isNotEmpty
-                          ? const Color(0xFF991B1B)
-                          : const Color(0xFF065F46),
+          if (atRisk.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2).withOpacity(0.7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.25)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${atRisk.length} item${atRisk.length == 1 ? '' : 's'} at risk — use today',
+                    style: const TextStyle(
+                      color: Color(0xFF991B1B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
           if (visible.isEmpty)
             Expanded(
               child: Center(
-                child: _glassCard(
-                  blur: 20,
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        size: 56,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'No visible items in inventory',
-                        style: titleStyle.copyWith(
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: () => _setStep(DemoStep.scan),
-                        icon: const Icon(Icons.camera_alt_rounded),
-                        label: const Text('Run Scan'),
-                      ),
-                    ],
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(Icons.inbox_rounded, size: 40, color: scheme.onSurfaceVariant.withOpacity(0.4)),
+                    const SizedBox(height: 8),
+                    Text('No items yet', style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+                    Text('Run a scan to add items.', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  ],
                 ),
               ),
             )
           else
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.only(bottom: 96),
+              child: ListView.builder(
+                padding: const EdgeInsets.only(bottom: 8),
                 itemCount: visible.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 14),
                 itemBuilder: (BuildContext context, int index) {
                   final FoodItem item = visible[index];
                   final int days = _daysToExpiry(item);
                   final bool risk = _isAtRisk(item);
                   final bool soon = !risk && days <= 4;
-                  final IconData leadingIcon = risk
-                      ? Icons.warning_amber_rounded
-                      : soon
-                          ? Icons.schedule_rounded
-                          : Icons.check_circle_rounded;
-                  final Color stripeColor = risk
-                      ? theme.colorScheme.error
-                      : soon
-                          ? theme.colorScheme.tertiary
-                          : theme.colorScheme.primaryContainer;
-                  final Color iconColor = risk
-                      ? theme.colorScheme.error
-                      : soon
-                          ? theme.colorScheme.tertiary
-                          : theme.colorScheme.primary;
 
-                  return ClipRRect(
+                  return Container(
                     key: ValueKey<String>('inv_${item.id}_$index'),
-                    borderRadius: BorderRadius.circular(18),
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.65),
-                            width: 1.2,
+                    margin: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: risk
+                          ? const Color(0xFFFEE2E2).withOpacity(0.3)
+                          : Colors.white.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: risk
+                            ? const Color(0xFFEF4444).withOpacity(0.25)
+                            : Colors.white.withOpacity(0.6),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        // Color dot
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: risk
+                                ? const Color(0xFFEF4444)
+                                : soon
+                                    ? scheme.tertiary
+                                    : const Color(0xFF10B981),
                           ),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Container(
-                              width: 7,
-                              decoration: BoxDecoration(
-                                color: stripeColor,
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(18),
-                                  bottomLeft: Radius.circular(18),
-                                ),
-                              ),
-                            ),
+                        const SizedBox(width: 8),
+                        // Name
                         Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(18),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Icon(
-                                      leadingIcon,
-                                      color: iconColor,
-                                      size: 26,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        item.name,
-                                        style: titleStyle.copyWith(
-                                          color: theme.colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Expiry: ${item.expiryDate.day}/${item.expiryDate.month}/${item.expiryDate.year}',
-                                  style: titleStyle.copyWith(
-                                    color: risk
-                                        ? theme.colorScheme.error
-                                        : theme.colorScheme.onSurface,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  risk
-                                      ? 'Consume TODAY — at risk!'
-                                      : soon
-                                          ? 'Consume within $days day(s)'
-                                          : 'Consume by ${item.expiryDate.day}/${item.expiryDate.month}/${item.expiryDate.year}',
-                                  style: bodyStyle.copyWith(
-                                    color: risk
-                                        ? theme.colorScheme.error
-                                        : soon
-                                            ? theme.colorScheme.tertiary
-                                            : theme.colorScheme.onSurfaceVariant,
-                                    fontWeight: risk || soon
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Qty ${item.quantity} • Freshness ${item.freshnessScore}/5',
-                                  style: bodyStyle.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                if (risk) ...<Widget>[
-                                  const SizedBox(height: 10),
-                                  Chip(
-                                    avatar: const Icon(
-                                      Icons.priority_high_rounded,
-                                      size: 16,
-                                      color: Color(0xFFEF4444),
-                                    ),
-                                    label: const Text(
-                                      'AT RISK',
-                                      style: TextStyle(
-                                        color: Color(0xFFEF4444),
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    backgroundColor: const Color(0xFFFEE2E2),
-                                    side: BorderSide(
-                                      color: const Color(0xFFEF4444).withOpacity(0.35),
-                                    ),
-                                  ),
-                                ],
-                              ],
+                          flex: 3,
+                          child: Text(
+                            item.name,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Expiry
+                        Text(
+                          '${item.expiryDate.day}/${item.expiryDate.month}/${item.expiryDate.year}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: risk ? const Color(0xFFEF4444) : scheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Status
+                        SizedBox(
+                          width: 62,
+                          child: Text(
+                            risk ? 'Use TODAY!' : soon ? '$days day(s)' : 'Qty ${item.quantity}',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: risk || soon ? FontWeight.w700 : FontWeight.normal,
+                              color: risk
+                                  ? const Color(0xFFEF4444)
+                                  : soon
+                                      ? scheme.tertiary
+                                      : scheme.onSurfaceVariant,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  ),
-                );
+                  );
                 },
               ),
             ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: visible.isEmpty ? null : _goToSuggestions,
-            icon: const Icon(Icons.lightbulb_rounded),
-            label: const Text('Continue to Suggestions'),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 38,
+            child: FilledButton.icon(
+              onPressed: visible.isEmpty ? null : _goToSuggestions,
+              icon: const Icon(Icons.lightbulb_rounded, size: 16),
+              label: const Text('Continue to Suggestions', style: TextStyle(fontSize: 13)),
+            ),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _goBackStep,
-            icon: const Icon(Icons.arrow_back_rounded),
-            label: const Text('Back'),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 34,
+            child: OutlinedButton.icon(
+              onPressed: _goBackStep,
+              icon: const Icon(Icons.arrow_back_rounded, size: 16),
+              label: const Text('Back', style: TextStyle(fontSize: 13)),
+            ),
           ),
         ],
       ),
@@ -3346,15 +3241,11 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final t = theme.textTheme;
-    final titleStyle = t.titleMedium ??
-        const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        );
-    final bodyStyle = t.bodyMedium ??
+    final titleStyle = (t.titleSmall ??
         const TextStyle(
           fontSize: 14,
-        );
+          fontWeight: FontWeight.w600,
+        )).copyWith(fontWeight: FontWeight.w600);
     final subStyle = (t.bodySmall ??
             const TextStyle(
               fontSize: 12,
@@ -3362,115 +3253,86 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
         .copyWith(color: colorScheme.onSurfaceVariant);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory'),
-      ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Inventory', style: titleStyle),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Review scanned food and fix risk items quickly.',
-                        style: bodyStyle.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Compact header row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.kitchen_rounded, size: 18, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text('Inventory', style: titleStyle.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                  Text('${visible.length} items', style: subStyle),
+                  const Spacer(),
+                  if (atRisk.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Card(
-                color: colorScheme.errorContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: colorScheme.onErrorContainer,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Risk Summary: ${atRisk.length} items at risk - use these today',
-                          style: bodyStyle.copyWith(
-                            color: colorScheme.onErrorContainer,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber_rounded, size: 14, color: colorScheme.onErrorContainer),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${atRisk.length} at risk',
+                            style: (t.labelSmall ?? const TextStyle(fontSize: 11)).copyWith(
+                              color: colorScheme.onErrorContainer,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (visible.isEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('No inventory items yet', style: titleStyle),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Run a demo scan to add items.',
-                          style: bodyStyle.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
                     ),
-                  ),
-                ),
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  if (index < 0 || index >= visible.length) {
-                    return const SizedBox.shrink();
-                  }
-                  final item = visible[index];
-                  return KeyedSubtree(
-                    key: ValueKey('inv_${item.id}_$index'),
-                    child: _buildInventoryItemCardCrashSafe(item),
-                  );
-                },
-                childCount: visible.length,
+                ],
               ),
             ),
-          const SliverPadding(
-            padding: EdgeInsets.only(bottom: 24),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton.icon(
-            onPressed: visible.isEmpty ? null : _goToSuggestions,
-            icon: const Icon(Icons.lightbulb_outline),
-            label: const Text('Continue to Suggestions'),
-          ),
+            const SizedBox(height: 6),
+            // Items list
+            Expanded(
+              child: visible.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.inbox_rounded, size: 40, color: colorScheme.onSurfaceVariant.withOpacity(0.4)),
+                          const SizedBox(height: 8),
+                          Text('No items yet', style: subStyle),
+                          Text('Run a scan to add items.', style: subStyle),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      itemCount: visible.length,
+                      itemBuilder: (context, index) {
+                        final item = visible[index];
+                        return KeyedSubtree(
+                          key: ValueKey('inv_${item.id}_$index'),
+                          child: _buildInventoryItemCardCrashSafe(item),
+                        );
+                      },
+                    ),
+            ),
+            // Bottom buttons
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: SizedBox(
+                height: 40,
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: visible.isEmpty ? null : _goToSuggestions,
+                  icon: const Icon(Icons.lightbulb_outline, size: 18),
+                  label: const Text('Continue to Suggestions', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -3480,94 +3342,99 @@ class _FridgeGuardianAppState extends State<FridgeGuardianApp> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final t = theme.textTheme;
-    final titleStyle = t.titleMedium ??
-        const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        );
-    final bodyStyle = t.bodyMedium ??
-        const TextStyle(
-          fontSize: 14,
-        );
-    final subStyle = (t.bodySmall ??
-            const TextStyle(
-              fontSize: 12,
-            ))
-        .copyWith(color: colorScheme.onSurfaceVariant);
     final days = _daysToExpiry(item);
     final atRisk = _isAtRisk(item);
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              atRisk ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-              color: atRisk ? colorScheme.error : colorScheme.primary,
+    final nameStyle = const TextStyle(fontSize: 13, fontWeight: FontWeight.w600);
+    final smallStyle = TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: atRisk
+            ? colorScheme.errorContainer.withOpacity(0.25)
+            : colorScheme.surfaceContainerHighest.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: atRisk
+              ? colorScheme.error.withOpacity(0.3)
+              : colorScheme.outlineVariant.withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            atRisk ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+            color: atRisk ? colorScheme.error : colorScheme.primary,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          // Name
+          Expanded(
+            flex: 3,
+            child: Text(
+              item.name,
+              style: nameStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(item.name, style: titleStyle),
-                      ),
-                      if (atRisk)
-                        Chip(
-                          label: Text(
-                            'AT RISK',
-                            style: subStyle.copyWith(
-                              color: colorScheme.onErrorContainer,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          backgroundColor: colorScheme.errorContainer,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                    ],
+          ),
+          const SizedBox(width: 6),
+          // Expiry + status
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${item.expiryDate.day}/${item.expiryDate.month}/${item.expiryDate.year}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: atRisk ? colorScheme.error : colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Expiry: ${item.expiryDate.day}/${item.expiryDate.month}/${item.expiryDate.year}',
-                    style: bodyStyle.copyWith(
-                      color: atRisk ? colorScheme.error : colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    atRisk
-                        ? 'Consume TODAY — at risk!'
+                ),
+                Text(
+                  atRisk
+                      ? 'Use TODAY!'
+                      : days <= 4
+                          ? '$days day(s) left'
+                          : 'Qty ${item.quantity}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: atRisk
+                        ? colorScheme.error
                         : days <= 4
-                            ? 'Consume within $days day(s)'
-                            : 'Consume by ${item.expiryDate.day}/${item.expiryDate.month}/${item.expiryDate.year}',
-                    style: subStyle.copyWith(
-                      color: atRisk
-                          ? colorScheme.error
-                          : days <= 4
-                              ? colorScheme.tertiary
-                              : colorScheme.onSurfaceVariant,
-                      fontWeight: atRisk || days <= 4
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
+                            ? colorScheme.tertiary
+                            : colorScheme.onSurfaceVariant,
+                    fontWeight: atRisk || days <= 4 ? FontWeight.w600 : FontWeight.normal,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Qty: ${item.quantity}   Freshness: ${item.freshnessScore}/5',
-                    style: subStyle,
-                  ),
-                ],
+                ),
+              ],
+            ),
+          ),
+          if (atRisk) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'RISK',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: colorScheme.onErrorContainer,
+                ),
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
